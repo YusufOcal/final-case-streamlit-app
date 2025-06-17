@@ -22,25 +22,8 @@ from joblib import load
 from sklearn.calibration import CalibratedClassifierCV
 
 # ---------- Secure local/remote file handling ----------
-DATA_URL = st.secrets.get("DATA_URL", "")  # e.g. S3 presigned URL
-MODEL_URL = st.secrets.get("MODEL_URL", "")
-
-def _cached_download(url: str, fallback: str) -> str:
-    """If URL present, download once to temp dir; else return fallback path."""
-    if not url:
-        return fallback
-    fname = hashlib.md5(url.encode()).hexdigest() + "_" + os.path.basename(fallback)
-    cache_path = os.path.join(tempfile.gettempdir(), fname)
-    if not os.path.exists(cache_path):
-        try:
-            urllib.request.urlretrieve(url, cache_path)
-        except Exception as e:
-            st.warning(f"Dosya indirilemedi ({e}); yerel '{fallback}' kullanılacak.")
-            return fallback
-    return cache_path
-
-DATA_PATH = _cached_download(DATA_URL, "final_dataset_ml_ready_numeric_plus_extended_with_title.csv")
-MODEL_PATH = _cached_download(MODEL_URL, "job_apply_lgbm_pipeline.pkl")
+DATA_PATH = "final_dataset_ml_ready_numeric_plus_extended_with_title.csv"
+MODEL_PATH = "job_apply_lgbm_pipeline.pkl"
 
 TOP_K = 10
 SCHEMES = ["0.5/0.4/0.1", "0.6/0.3/0.1", "0.4/0.5/0.1"]
