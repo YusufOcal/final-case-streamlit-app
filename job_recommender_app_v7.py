@@ -1,14 +1,47 @@
 # v7: advanced scoring & performance improvements
 import io, math, random, numpy as np, pandas as pd, streamlit as st
+import os, tempfile, urllib.request, hashlib
 
 st.set_page_config(page_title="Job Recommender v7", layout="wide")
 st.title("🏢📍 İş İlanı Önerici – v7")
 
+# ---------- Mobile responsiveness (CSS) ----------
+st.markdown(
+    """
+    <style>
+    .match-score {font-size:18px;}
+    @media only screen and (max-width: 600px){
+        .match-score {font-size:16px;}
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 from joblib import load
 from sklearn.calibration import CalibratedClassifierCV
 
-DATA_PATH = "final_dataset_ml_ready_numeric_plus_extended_with_title.csv"
-MODEL_PATH = "job_apply_lgbm_pipeline.pkl"
+# ---------- Secure local/remote file handling ----------
+DATA_URL = st.secrets.get("DATA_URL", "")  # e.g. S3 presigned URL
+MODEL_URL = st.secrets.get("MODEL_URL", "")
+
+def _cached_download(url: str, fallback: str) -> str:
+    """If URL present, download once to temp dir; else return fallback path."""
+    if not url:
+        return fallback
+    fname = hashlib.md5(url.encode()).hexdigest() + "_" + os.path.basename(fallback)
+    cache_path = os.path.join(tempfile.gettempdir(), fname)
+    if not os.path.exists(cache_path):
+        try:
+            urllib.request.urlretrieve(url, cache_path)
+        except Exception as e:
+            st.warning(f"Dosya indirilemedi ({e}); yerel '{fallback}' kullanılacak.")
+            return fallback
+    return cache_path
+
+DATA_PATH = _cached_download(DATA_URL, "final_dataset_ml_ready_numeric_plus_extended_with_title.csv")
+MODEL_PATH = _cached_download(MODEL_URL, "job_apply_lgbm_pipeline.pkl")
+
 TOP_K = 10
 SCHEMES = ["0.5/0.4/0.1", "0.6/0.3/0.1", "0.4/0.5/0.1"]
 SCHEME_WEIGHTS = {s: tuple(map(float, s.split("/") )) for s in SCHEMES}
@@ -162,7 +195,10 @@ for _,r in sub.iterrows():
     pct=int(r['match_ratio']*100)
     color="green" if pct>70 else "orange" if pct>40 else "red"
     st.markdown(f"### {r['title']}")
-    st.markdown(f"<span style='color:{color};font-size:18px;'>Eşleşme: {pct}%</span>",unsafe_allow_html=True)
+    st.markdown(
+        f"<span class='match-score' style='color:{color};'>Eşleşme: {pct}%</span>",
+        unsafe_allow_html=True,
+    )
     st.progress(float(r['match_ratio']))
 
 csv=sub.to_csv(index=False).encode('utf-8')
